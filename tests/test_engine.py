@@ -79,6 +79,37 @@ class TestValidation:
     def test_empty_library_returns_empty_list(self, engine, base_context):
         assert engine.get_eligible_activities(base_context, []) == []
 
+    def test_none_field_value_is_skipped(self, engine, base_context):
+        """A present-but-null field must be treated as invalid, not crash."""
+        raw = _activity()
+        raw["markets"] = None
+        assert engine.get_eligible_activities(base_context, [raw]) == []
+
+    def test_wrong_type_field_value_is_skipped(self, engine, base_context):
+        """A field with an unexpected type must be treated as invalid."""
+        raw = _activity()
+        raw["required_modules"] = "base-set"  # str, not a list
+        assert engine.get_eligible_activities(base_context, [raw]) == []
+
+    def test_non_string_module_entry_is_skipped(self, engine, base_context):
+        raw = _activity(required_modules=["base-set", 123])
+        assert engine.get_eligible_activities(base_context, [raw]) == []
+
+    def test_empty_id_or_release_is_skipped(self, engine, base_context):
+        assert engine.get_eligible_activities(base_context, [_activity(id="")]) == []
+        assert engine.get_eligible_activities(base_context, [_activity(release="")]) == []
+
+    def test_non_dict_record_is_skipped(self, engine, base_context):
+        assert engine.get_eligible_activities(base_context, [None, "oops", 42]) == []
+
+    def test_malformed_value_does_not_block_valid_ones(self, engine, base_context):
+        """A record with a null field must not prevent valid activities from appearing."""
+        bad = _activity(id="bad-act")
+        bad["markets"] = None
+        good = _activity(id="good-act")
+        result = engine.get_eligible_activities(base_context, [bad, good])
+        assert [a.id for a in result] == ["good-act"]
+
 
 # ---------------------------------------------------------------------------
 # Rule 1 – release must match the customer's active release
