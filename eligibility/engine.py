@@ -39,9 +39,36 @@ class ActivityEligibilityEngine:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _is_valid(self, raw: Dict[str, Any]) -> bool:
-        """Return True only when *raw* contains every required field."""
-        return _REQUIRED_FIELDS.issubset(raw.keys())
+    def _is_valid(self, raw: Any) -> bool:
+        """Return True only when *raw* is safe to evaluate.
+
+        A record is considered valid when it is a mapping that contains every
+        required field and each field holds a value of a usable type. This
+        guards the evaluation loop so that a single malformed entry (missing
+        fields, ``None`` values, or wrong types) never blocks the remaining
+        library from being evaluated.
+        """
+        if not isinstance(raw, dict):
+            return False
+        if not _REQUIRED_FIELDS.issubset(raw.keys()):
+            return False
+
+        # ``id`` and ``release`` must be non-empty scalars we can compare.
+        if not isinstance(raw["id"], str) or not raw["id"]:
+            return False
+        if not isinstance(raw["release"], str) or not raw["release"]:
+            return False
+
+        # ``markets`` and ``required_modules`` must be lists/tuples of strings
+        # so they can be iterated and compared safely.
+        for key in ("markets", "required_modules"):
+            value = raw[key]
+            if not isinstance(value, (list, tuple)):
+                return False
+            if not all(isinstance(item, str) for item in value):
+                return False
+
+        return True
 
     def _parse(self, raw: Dict[str, Any]) -> Activity:
         return Activity(
